@@ -2,8 +2,11 @@ streamlit==1.52.2
 openai==2.14.0
 autogen-agentchat
 autogen-ext[openai]
+
 python-pptx==1.0.2
 python-dotenv==1.0.1
 chromadb==0.4.24
+
 pandas
-numpy==1.23.5
+numpy
+
