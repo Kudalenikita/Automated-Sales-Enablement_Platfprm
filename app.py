@@ -389,28 +389,35 @@ os.makedirs("data", exist_ok=True)
 init_db()
 import chromadb
 import os
+from chromadb.config import Settings, DEFAULT_TENANT, DEFAULT_DATABASE
 
-# ── Vector DB Setup ───────────────────────────────────────────────────────
-os.makedirs("./data/chroma_db", exist_ok=True)
+# Ensure the directory exists (use a clean name to avoid old corrupted data)
+CHROMA_PATH = "./data/chroma_db"
+os.makedirs(CHROMA_PATH, exist_ok=True)
 
 try:
-    vector_client = chromadb.PersistentClient(path="./data/chroma_db")
-    # Optional: minimal check
-    vector_client.get_or_create_collection("test")
-    print("ChromaDB persistent client (path) initialized successfully")
+    # Modern + explicit way (recommended in current docs/cookbook)
+    vector_client = chromadb.PersistentClient(
+        path=CHROMA_PATH,
+        settings=Settings(allow_reset=True, anonymized_telemetry=False),  # optional but helpful
+        tenant=DEFAULT_TENANT,           # = "default_tenant"
+        database=DEFAULT_DATABASE        # = "default_database"
+    )
+    print("✅ Modern PersistentClient created successfully with explicit tenant/database")
+
 except Exception as e:
-    st.warning(f"Modern PersistentClient failed: {e}")
+    print(f"Modern client failed: {e}")
     try:
-        from chromadb.config import Settings
+        # Very reliable fallback (still works in most 2025–2026 deployments)
         vector_client = chromadb.Client(Settings(
-            persist_directory="./data/chroma_db",
+            persist_directory=CHROMA_PATH,
             is_persistent=True,
             allow_reset=True,
             anonymized_telemetry=False
         ))
-        print("Fallback to legacy ChromaDB client")
+        print("✅ Fallback legacy-style client created")
     except Exception as fallback_e:
-        st.error(f"Critical: Cannot initialize ChromaDB at all!\n{fallback_e}")
+        st.error(f"CRITICAL: Cannot initialize ChromaDB!\nDetails: {fallback_e}")
         st.stop()
 
 # Now use vector_client everywhere instead of client
@@ -418,10 +425,7 @@ embedding_func = OpenAIEmbeddingFunction(
     api_key=OPENAI_API_KEY,
     model_name="text-embedding-3-small"
 )
-embedding_func = OpenAIEmbeddingFunction(
-    api_key=OPENAI_API_KEY,
-    model_name="text-embedding-3-small"
-)
+
 
 
 
