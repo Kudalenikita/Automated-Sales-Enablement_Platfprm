@@ -15,8 +15,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 import chromadb
 from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
-import nest_asyncio
-nest_asyncio.apply()
+#import nest_asyncio
+#nest_asyncio.apply()
 
 # AutoGen imports
 from autogen_ext.models.openai import OpenAIChatCompletionClient
