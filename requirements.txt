@@ -4,6 +4,6 @@ autogen-agentchat
 autogen-ext[openai]
 python-pptx==1.0.2
 python-dotenv==1.0.1
-chromadb-client>=1.0.0  # ← This is the key change!
+chromadb-client>=1.0.0  
 pandas
-# Remove or comment out numpy pin – not needed here
+
