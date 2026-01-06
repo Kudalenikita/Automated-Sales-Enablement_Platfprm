@@ -1,13 +1,14 @@
+streamlit
+openai
+
+autogen
+autogen-ext-models-openai==0.3.2
 
 python-pptx
-pyautogen
+python-dotenv==1.0.1
 
-streamlit>=1.32.0
-python-dotenv>=1.0.1
-pandas>=2.2.0
-chromadb>=0.5.0
-python-pptx>=1.0.0
-openai>=1.50.0
-autogen-agentchat>=0.2.20
-autogen-ext-models-openai>=0.2.10
-nest-asyncio>=1.6.0
+chromadb==0.5.3
+nest-asyncio==1.6.0
+
+pandas
+numpy
