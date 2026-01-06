@@ -380,7 +380,6 @@ def build_executive_summary(customer_name: str, contract_df: pd.DataFrame, relea
 # Uses OpenAI's text-embedding-3-small for cost-efficient embeddings
 # All contract and release chunks are ingested with metadata for retrieval
 # (Chunks created in upload processing via ingest_to_vector_db calls)
-  
 import os
 import streamlit as st
 import chromadb
@@ -389,19 +388,16 @@ from autogen import OpenAIEmbeddingFunction, OpenAIChatCompletionClient
 
 # ==================== Initialization ====================
 
-# Stop app if API key is missing
 if not OPENAI_API_KEY:
     st.stop()
 
-# Ensure data folder exists
 os.makedirs("data/chroma", exist_ok=True)
 
-# Initialize your DB (assuming init_db() is defined elsewhere)
+# init_db() if you have any local DB initialization
 init_db()
 
-# ==================== Vector DB Client (Latest Chroma) ====================
+# ==================== Vector DB Client ====================
 
-# Use the new Client API with explicit Settings
 vector_client = chromadb.Client(
     Settings(
         persist_directory="data/chroma",
@@ -410,7 +406,7 @@ vector_client = chromadb.Client(
     )
 )
 
-# Create or get your collection
+# Get or create collection
 collection = vector_client.get_or_create_collection(name="sales_docs")
 
 # ==================== Embedding Function ====================
@@ -420,12 +416,13 @@ embedding_func = OpenAIEmbeddingFunction(
     model_name="text-embedding-3-small"
 )
 
-# ==================== LLM / Chat Client ====================
+# ==================== LLM Client ====================
 
 model_client = OpenAIChatCompletionClient(
     model="gpt-4o-mini",
     api_key=OPENAI_API_KEY
 )
+
 
 #==================== AutoGen Agents ====================
 # Three lightweight agents:
