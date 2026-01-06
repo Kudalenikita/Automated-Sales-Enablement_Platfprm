@@ -6,7 +6,7 @@ autogen-ext[openai]
 python-pptx==1.0.2
 python-dotenv==1.0.1
 
-chromadb==1.8.1
+chromadb==0.4.24
 
 pandas
 numpy
