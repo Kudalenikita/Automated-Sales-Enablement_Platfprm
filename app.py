@@ -384,54 +384,34 @@ def build_executive_summary(customer_name: str, contract_df: pd.DataFrame, relea
 # ==================== Initialization ====================
 if not OPENAI_API_KEY:
     st.stop()
-
-os.makedirs("data", exist_ok=True)
-init_db()
-import chromadb
-import os
-from chromadb.config import Settings, DEFAULT_TENANT, DEFAULT_DATABASE
-
-# Ensure the directory exists (use a clean name to avoid old corrupted data)
+# ==================== ChromaDB Initialization ====================
 CHROMA_PATH = "./data/chroma_db"
 os.makedirs(CHROMA_PATH, exist_ok=True)
 
 try:
-    # Modern + explicit way (recommended in current docs/cookbook)
     vector_client = chromadb.PersistentClient(
         path=CHROMA_PATH,
-        settings=Settings(allow_reset=True, anonymized_telemetry=False),  # optional but helpful
-        tenant=DEFAULT_TENANT,           # = "default_tenant"
-        database=DEFAULT_DATABASE        # = "default_database"
+        settings=Settings(allow_reset=True, anonymized_telemetry=False),
+        tenant=DEFAULT_TENANT,
+        database=DEFAULT_DATABASE
     )
-    print("✅ Modern PersistentClient created successfully with explicit tenant/database")
-
 except Exception as e:
-    print(f"Modern client failed: {e}")
+    st.warning(f"Modern PersistentClient failed: {e}")
     try:
-        # Very reliable fallback (still works in most 2025–2026 deployments)
         vector_client = chromadb.Client(Settings(
             persist_directory=CHROMA_PATH,
             is_persistent=True,
             allow_reset=True,
             anonymized_telemetry=False
         ))
-        print("✅ Fallback legacy-style client created")
     except Exception as fallback_e:
         st.error(f"CRITICAL: Cannot initialize ChromaDB!\nDetails: {fallback_e}")
         st.stop()
 
-# Now use vector_client everywhere instead of client
 embedding_func = OpenAIEmbeddingFunction(
     api_key=OPENAI_API_KEY,
     model_name="text-embedding-3-small"
 )
-
-
-
-
-
-
-
 
 model_client = OpenAIChatCompletionClient(
     model="gpt-4o-mini",
