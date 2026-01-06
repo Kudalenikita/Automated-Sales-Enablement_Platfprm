@@ -1,10 +1,10 @@
 streamlit==1.52.2
-openai==2.14.0  # or upgrade to latest if desired
+openai==2.14.0
 autogen-agentchat
 autogen-ext[openai]
 python-pptx==1.0.2
 python-dotenv==1.0.1
 chromadb==0.5.3
 nest-asyncio==1.6.0
-pandas  # remove version pin → gets latest (~2.3.x, fully supports Python 3.13)
-numpy   # remove version pin → gets latest (~2.3.x or higher, supports Python 3.13)
+pandas
+numpy
