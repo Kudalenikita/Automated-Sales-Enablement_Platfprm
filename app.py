@@ -395,7 +395,7 @@ from chromadb.config import DEFAULT_TENANT, DEFAULT_DATABASE
 import os
 os.makedirs("data/chroma", exist_ok=True)
 
-vector_client = chromadb.PersistentClient(
+client = chromadb.PersistentClient(
     path="data/chroma",
     tenant=DEFAULT_TENANT,
     database=DEFAULT_DATABASE
@@ -408,6 +408,7 @@ embedding_func = OpenAIEmbeddingFunction(
     api_key=OPENAI_API_KEY,
     model_name="text-embedding-3-small"
 )
+
 
 
 
