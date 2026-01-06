@@ -388,7 +388,15 @@ if not OPENAI_API_KEY:
 os.makedirs("data", exist_ok=True)
 init_db()
 
-vector_client = chromadb.PersistentClient(path="data/chroma")
+import chromadb
+from chromadb.config import DEFAULT_TENANT, DEFAULT_DATABASE
+
+vector_client = chromadb.PersistentClient(
+    path="data/chroma",
+    tenant=DEFAULT_TENANT,
+    database=DEFAULT_DATABASE
+)
+
 embedding_func = OpenAIEmbeddingFunction(
     api_key=OPENAI_API_KEY,
     model_name="text-embedding-3-small"
