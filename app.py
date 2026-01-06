@@ -391,16 +391,28 @@ init_db()
 import chromadb
 from chromadb.config import DEFAULT_TENANT, DEFAULT_DATABASE
 
+# Create the directory if it doesn't exist
+import os
+os.makedirs("data/chroma", exist_ok=True)
+
 vector_client = chromadb.PersistentClient(
     path="data/chroma",
     tenant=DEFAULT_TENANT,
     database=DEFAULT_DATABASE
 )
+# Explicitly create the tenant and database (idempotent—safe to run every time)
+client.create_tenant(name=DEFAULT_TENANT)   # If using a non-default tenant, adjust here
+client.create_database(name=DEFAULT_DATABASE)
 
 embedding_func = OpenAIEmbeddingFunction(
     api_key=OPENAI_API_KEY,
     model_name="text-embedding-3-small"
 )
+
+
+
+
+
 
 model_client = OpenAIChatCompletionClient(
     model="gpt-4o-mini",
