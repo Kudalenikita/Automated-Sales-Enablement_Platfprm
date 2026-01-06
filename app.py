@@ -1,3 +1,6 @@
+# automated_sales_enablement/app.py
+
+
 import streamlit as st
 import pandas as pd
 import os
@@ -12,13 +15,13 @@ from datetime import datetime
 from dotenv import load_dotenv
 import chromadb
 from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
-from chromadb.config import Settings, DEFAULT_TENANT, DEFAULT_DATABASE
+
 
 # AutoGen imports
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_agentchat.agents import AssistantAgent
 
-# Local imports (make sure these exist in your project structure)
+# Local imports
 from db.db_utils import (
     init_db,
     store_contract_to_db,
@@ -32,6 +35,7 @@ from logic.risk_engine import risk_analysis_agent
 from logic.sales_insight import create_sales_insight_agent
 from logic.sales_context import build_sales_context
 from logic.pitch_deck import generate_pitch_deck_content_sync, build_pptx_from_content
+
 from utils.utils import normalize_text, chunk_text
 
 # Suppress noisy logs
@@ -48,7 +52,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
 # ── Styling ───────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
@@ -58,6 +61,7 @@ st.markdown("""
         padding: 4px;
         box-shadow: 0 4px 20px rgba(124, 58, 237, 0.25);
     }
+    
     .pill-button > button {
         background: #1e293b !important;
         color: white !important;
@@ -68,11 +72,13 @@ st.markdown("""
         padding: 0.75rem 1.5rem !important;
         transition: all 0.25s ease !important;
     }
+    
     .pill-button > button:hover {
         background: #334155 !important;
         transform: translateY(-2px) !important;
         box-shadow: 0 6px 25px rgba(124, 58, 237, 0.35) !important;
     }
+
     .exec-summary-container {
         background: #1e1b32;
         border: 1px solid #4b3f72;
@@ -84,13 +90,55 @@ st.markdown("""
         line-height: 1.5;
         color: #e0e7ff;
     }
+
     .exec-summary-container strong {
         color: #c4b5fd;
+    }
+
+    .exec-summary-confidence {
+        margin-top: 1rem;
+        font-size: 0.8rem;
+        color: #94a3b8;
+        font-style: italic;
+        text-align: right;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Purple pill button styling (unchanged)
+st.markdown("""
+<style>
+    .pill-button {
+        background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+        border-radius: 999px;
+        padding: 4px;
+        box-shadow: 0 4px 20px rgba(124, 58, 237, 0.25);
+    }
+    
+    .pill-button > button {
+        background: #1e293b !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 999px !important;
+        font-weight: 600 !important;
+        font-size: 1.02rem !important;
+        padding: 0.75rem 1.5rem !important;
+        transition: all 0.25s ease !important;
+    }
+    
+    .pill-button > button:hover {
+        background: #334155 !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 25px rgba(124, 58, 237, 0.35) !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ==================== Authentication ====================
+# Simple SQLite-based authentication with hashed passwords (SHA-256).
+# Users are stored in data/users.db. Not production-grade (no rate limiting, etc.)
+# but sufficient for internal sales tool.
+
 def init_user_db():
     os.makedirs("data", exist_ok=True)
     conn = sqlite3.connect("data/users.db")
@@ -178,60 +226,10 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# ==================== ChromaDB Initialization (fixed version) ====================
-CHROMA_PATH = "./chroma_data_2026"
+# ==================== Persistent State ====================
+# Persists uploaded files metadata, chat history, and pitch deck state across reruns.
+# Uses pickle for simplicity — ensure trusted environment only.
 
-os.makedirs(CHROMA_PATH, exist_ok=True)
-
-try:
-    vector_client = chromadb.PersistentClient(
-        path=CHROMA_PATH,
-        settings=Settings(allow_reset=True, anonymized_telemetry=False),
-        tenant=DEFAULT_TENANT,
-        database=DEFAULT_DATABASE
-    )
-except Exception as e:
-    st.warning(f"Modern PersistentClient failed: {e}")
-    vector_client = chromadb.Client(Settings(
-        persist_directory=CHROMA_PATH,
-        is_persistent=True,
-        allow_reset=True,
-        anonymized_telemetry=False
-    ))
-
-embedding_func = OpenAIEmbeddingFunction(
-    api_key=OPENAI_API_KEY,
-    model_name="text-embedding-3-small"
-)
-
-model_client = OpenAIChatCompletionClient(
-    model="gpt-4o-mini",
-    api_key=OPENAI_API_KEY
-)
-
-# Agents
-comparison_agent = AssistantAgent(name="ComparisonAgent", model_client=model_client)
-risk_agent = AssistantAgent(name="RiskAgent", model_client=model_client)
-pitch_agent = AssistantAgent(name="PitchDeckAgent", model_client=model_client)
-
-# Utility functions
-def run_agent_sync(agent: AssistantAgent, task: str) -> str:
-    resp = asyncio.run(agent.run(task=task))
-    if hasattr(resp, "final_output") and resp.final_output:
-        return str(resp.final_output).strip()
-    if hasattr(resp, "messages") and resp.messages:
-        last = resp.messages[-1]
-        if hasattr(last, "content"):
-            return last.content.strip()
-    return "No response generated."
-
-def get_file_hash(file):
-    file.seek(0)
-    content = file.read()
-    file.seek(0)
-    return hashlib.sha256(content).hexdigest()
-
-# Persistent state
 PERSISTENT_FILE = "data/persistent_state.pkl"
 
 def load_persistent_state():
@@ -239,8 +237,7 @@ def load_persistent_state():
         try:
             with open(PERSISTENT_FILE, "rb") as f:
                 state = pickle.load(f)
-                for key in ["uploaded_contracts", "uploaded_releases", "chat_sessions",
-                           "current_chat_id", "pitch_deck_path", "pitch_generated", "download_time"]:
+                for key in ["uploaded_contracts", "uploaded_releases", "chat_sessions", "current_chat_id", "pitch_deck_path", "pitch_generated", "download_time"]:
                     if key in state:
                         st.session_state[key] = state[key]
         except Exception as e:
@@ -262,7 +259,7 @@ def save_persistent_state():
 
 load_persistent_state()
 
-# Default session state
+# Right after load_persistent_state()
 defaults = {
     "chat_sessions": {},
     "current_chat_id": None,
@@ -273,13 +270,78 @@ defaults = {
     "uploaded_contracts": [],
     "uploaded_releases": [],
     "selected_risk_level": None,
+
+    # 🔔 upload notifications
     "contract_notice_time": None,
     "release_notice_time": None,
     "single_contract_warn_time": None,
 }
+
 for key, default in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = default
+
+if "existing_data_notice_time" not in st.session_state:
+    st.session_state.existing_data_notice_time = None
+
+if "existing_data_toast_time" not in st.session_state:
+    st.session_state.existing_data_toast_time = None
+
+# ==================== Sidebar ====================
+with st.sidebar:
+    st.markdown("### 🚀 Navigation")
+
+    def nav_button(label, icon, page_name):
+        is_active = st.session_state.page == page_name
+
+        st.button(
+            f"{icon}  {label}",
+            use_container_width=True,
+            type="secondary" if is_active else "tertiary",
+            key=f"nav_{page_name}",
+            on_click=lambda: st.session_state.update(page=page_name)
+        )
+
+
+    # Navigation buttons
+    nav_button("Dashboard", "🏠", "Dashboard")
+    nav_button("Upload Data", "📤", "Upload Data")
+    nav_button("Chat / Sales Assistant", "💬", "Chat / Sales Assistant")
+
+    if st.session_state.uploaded_contracts or st.session_state.uploaded_releases:
+        nav_button("Uploaded Files", "📁", "Uploaded Files")
+
+
+    st.markdown("---")
+    st.markdown("### Status")
+    if OPENAI_API_KEY:
+        st.success("✅ OpenAI Connected")
+    else:
+        st.error("❌ Add OPENAI_API_KEY to .env")
+    has_contract = len(st.session_state.uploaded_contracts) == 1
+    has_releases = len(st.session_state.uploaded_releases) >= 1
+    data_fully_loaded = has_contract and has_releases
+    if data_fully_loaded:
+        st.success("✅ Data Loaded")
+        if st.button("🗑️ Clear All Data", type="primary"):
+            keys_to_clear = ["chat_sessions", "current_chat_id", "pitch_deck_path", "pitch_generated", "download_time", "uploaded_contracts", "uploaded_releases", "page", "selected_risk_level"]
+            for k in keys_to_clear:
+                if k in st.session_state:
+                    del st.session_state[k]
+            if os.path.exists("data/sales.db"):
+                os.remove("data/sales.db")
+            if os.path.exists("data/chroma"):
+                try:
+                    import shutil
+                    shutil.rmtree("data/chroma")
+                except Exception as e:
+                    st.warning(f"Chroma cleanup issue: {e}")
+            if os.path.exists(PERSISTENT_FILE):
+                os.remove(PERSISTENT_FILE)
+            st.rerun()
+    else:
+        st.info("No data uploaded yet")
+        st.markdown("---")
 # ==================== Executive Summary Function ====================
 def build_executive_summary(customer_name: str, contract_df: pd.DataFrame, release_df: pd.DataFrame, risk_data: dict) -> str:
     if contract_df is None or contract_df.empty or release_df is None or release_df.empty:
@@ -318,51 +380,15 @@ def build_executive_summary(customer_name: str, contract_df: pd.DataFrame, relea
 # Uses OpenAI's text-embedding-3-small for cost-efficient embeddings
 # All contract and release chunks are ingested with metadata for retrieval
 # (Chunks created in upload processing via ingest_to_vector_db calls)
-    
+  
 # ==================== Initialization ====================
-# ==================== Early Safety Check ====================
 if not OPENAI_API_KEY:
-    st.error("❌ OPENAI_API_KEY is missing")
-    st.info("Please add OPENAI_API_KEY=sk-... to your .env file and restart/redeploy the app.")
     st.stop()
 
-# ==================== ChromaDB Initialization - SINGLE & RELIABLE ====================
-CHROMA_PATH = "./chroma_data_2026"  # New name to avoid old corrupted data
+os.makedirs("data", exist_ok=True)
+init_db()
 
-os.makedirs(CHROMA_PATH, exist_ok=True)
-
-try:
-    vector_client = chromadb.PersistentClient(
-        path=CHROMA_PATH,
-        settings=Settings(
-            allow_reset=True,
-            anonymized_telemetry=False
-        ),
-        tenant=DEFAULT_TENANT,
-        database=DEFAULT_DATABASE
-    )
-    st.session_state.chroma_status = "success_modern"
-except Exception as e:
-    st.warning(f"Modern client failed: {str(e)}")
-    try:
-        vector_client = chromadb.Client(Settings(
-            persist_directory=CHROMA_PATH,
-            is_persistent=True,
-            allow_reset=True,
-            anonymized_telemetry=False
-        ))
-        st.session_state.chroma_status = "success_fallback"
-    except Exception as fallback_e:
-        st.error(f"CRITICAL: ChromaDB initialization completely failed!\n{str(fallback_e)}")
-        st.stop()
-
-# Debug output - remove in production if desired
-if "chroma_status" in st.session_state:
-    if st.session_state.chroma_status == "success_modern":
-        st.success("ChromaDB initialized successfully (modern way)")
-    elif st.session_state.chroma_status == "success_fallback":
-        st.info("ChromaDB initialized using legacy fallback")
-
+vector_client = chromadb.PersistentClient(path="data/chroma")
 embedding_func = OpenAIEmbeddingFunction(
     api_key=OPENAI_API_KEY,
     model_name="text-embedding-3-small"
@@ -372,6 +398,24 @@ model_client = OpenAIChatCompletionClient(
     model="gpt-4o-mini",
     api_key=OPENAI_API_KEY
 )
+
+
+embedding_func = OpenAIEmbeddingFunction(
+    api_key=OPENAI_API_KEY,
+    model_name="text-embedding-3-small"
+)
+
+
+
+
+
+
+
+model_client = OpenAIChatCompletionClient(
+    model="gpt-4o-mini",
+    api_key=OPENAI_API_KEY
+)
+
 #==================== AutoGen Agents ====================
 # Three lightweight agents:
 # - ComparisonAgent: matches contract features vs released/planned features
