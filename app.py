@@ -381,35 +381,46 @@ def build_executive_summary(customer_name: str, contract_df: pd.DataFrame, relea
 # All contract and release chunks are ingested with metadata for retrieval
 # (Chunks created in upload processing via ingest_to_vector_db calls)
   
+import os
+import streamlit as st
+import chromadb
+from chromadb.config import Settings
+from autogen import OpenAIEmbeddingFunction, OpenAIChatCompletionClient
+
 # ==================== Initialization ====================
+
+# Stop app if API key is missing
 if not OPENAI_API_KEY:
     st.stop()
 
-os.makedirs("data", exist_ok=True)
+# Ensure data folder exists
+os.makedirs("data/chroma", exist_ok=True)
+
+# Initialize your DB (assuming init_db() is defined elsewhere)
 init_db()
 
-vector_client = chromadb.PersistentClient(path="data/chroma")
+# ==================== Vector DB Client (Latest Chroma) ====================
+
+# Use the new Client API with explicit Settings
+vector_client = chromadb.Client(
+    Settings(
+        persist_directory="data/chroma",
+        anonymized_telemetry=False,
+        allow_reset=True
+    )
+)
+
+# Create or get your collection
+collection = vector_client.get_or_create_collection(name="sales_docs")
+
+# ==================== Embedding Function ====================
+
 embedding_func = OpenAIEmbeddingFunction(
     api_key=OPENAI_API_KEY,
     model_name="text-embedding-3-small"
 )
 
-model_client = OpenAIChatCompletionClient(
-    model="gpt-4o-mini",
-    api_key=OPENAI_API_KEY
-)
-
-
-embedding_func = OpenAIEmbeddingFunction(
-    api_key=OPENAI_API_KEY,
-    model_name="text-embedding-3-small"
-)
-
-
-
-
-
-
+# ==================== LLM / Chat Client ====================
 
 model_client = OpenAIChatCompletionClient(
     model="gpt-4o-mini",
