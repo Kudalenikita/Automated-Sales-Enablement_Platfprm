@@ -387,23 +387,37 @@ if not OPENAI_API_KEY:
 
 os.makedirs("data", exist_ok=True)
 init_db()
-
 import chromadb
-from chromadb.config import DEFAULT_TENANT, DEFAULT_DATABASE
-
-# Create the directory if it doesn't exist
 import os
-os.makedirs("data/chroma", exist_ok=True)
 
-client = chromadb.PersistentClient(
-    path="data/chroma",
-    tenant=DEFAULT_TENANT,
-    database=DEFAULT_DATABASE
+# ── Vector DB Setup ───────────────────────────────────────────────────────
+os.makedirs("./data/chroma_db", exist_ok=True)
+
+try:
+    vector_client = chromadb.PersistentClient(path="./data/chroma_db")
+    # Optional: minimal check
+    vector_client.get_or_create_collection("test")
+    print("ChromaDB persistent client (path) initialized successfully")
+except Exception as e:
+    st.warning(f"Modern PersistentClient failed: {e}")
+    try:
+        from chromadb.config import Settings
+        vector_client = chromadb.Client(Settings(
+            persist_directory="./data/chroma_db",
+            is_persistent=True,
+            allow_reset=True,
+            anonymized_telemetry=False
+        ))
+        print("Fallback to legacy ChromaDB client")
+    except Exception as fallback_e:
+        st.error(f"Critical: Cannot initialize ChromaDB at all!\n{fallback_e}")
+        st.stop()
+
+# Now use vector_client everywhere instead of client
+embedding_func = OpenAIEmbeddingFunction(
+    api_key=OPENAI_API_KEY,
+    model_name="text-embedding-3-small"
 )
-# Explicitly create the tenant and database (idempotent—safe to run every time)
-client.create_tenant(name=DEFAULT_TENANT)   # If using a non-default tenant, adjust here
-client.create_database(name=DEFAULT_DATABASE)
-
 embedding_func = OpenAIEmbeddingFunction(
     api_key=OPENAI_API_KEY,
     model_name="text-embedding-3-small"
