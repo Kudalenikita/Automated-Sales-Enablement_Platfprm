@@ -384,40 +384,75 @@ def build_executive_summary(customer_name: str, contract_df: pd.DataFrame, relea
 # ==================== Initialization ====================
 if not OPENAI_API_KEY:
     st.stop()
-# ==================== ChromaDB Initialization ====================
-CHROMA_PATH = "./data/chroma_db"
+import streamlit as st
+import os
+import chromadb
+from chromadb.config import Settings, DEFAULT_TENANT, DEFAULT_DATABASE
+
+# ───────────────────────────────────────────────────────────────
+#          CHROMADB INITIALIZATION - THE ONLY IMPORTANT PART
+# ───────────────────────────────────────────────────────────────
+
+CHROMA_PATH = "./chroma_persistent_data"  # safe, clean name
+
 os.makedirs(CHROMA_PATH, exist_ok=True)
 
 try:
+    # Modern + explicit - currently the most reliable combination
     vector_client = chromadb.PersistentClient(
         path=CHROMA_PATH,
-        settings=Settings(allow_reset=True, anonymized_telemetry=False),
+        settings=Settings(
+            allow_reset=True,
+            anonymized_telemetry=False,
+            # chroma_db_impl="duckdb+parquet",  # uncomment if you want even more stability
+        ),
         tenant=DEFAULT_TENANT,
         database=DEFAULT_DATABASE
     )
-except Exception as e:
-    st.warning(f"Modern PersistentClient failed: {e}")
+    st.success("✅ ChromaDB PersistentClient initialized successfully (modern way)")
+
+except Exception as modern_err:
+    st.warning(f"Modern PersistentClient failed: {str(modern_err)}")
     try:
+        # Very reliable fallback - works in almost all broken environments
         vector_client = chromadb.Client(Settings(
             persist_directory=CHROMA_PATH,
             is_persistent=True,
             allow_reset=True,
-            anonymized_telemetry=False
+            anonymized_telemetry=False,
         ))
-    except Exception as fallback_e:
-        st.error(f"CRITICAL: Cannot initialize ChromaDB!\nDetails: {fallback_e}")
+        st.success("✅ ChromaDB initialized using legacy fallback client")
+    except Exception as fallback_err:
+        st.error(f"CRITICAL: Cannot initialize ChromaDB at all!\n{str(fallback_err)}")
         st.stop()
 
-embedding_func = OpenAIEmbeddingFunction(
-    api_key=OPENAI_API_KEY,
-    model_name="text-embedding-3-small"
-)
+# ───────────────────────────────────────────────────────────────
+#                  Minimal test / debug section
+# ───────────────────────────────────────────────────────────────
 
-model_client = OpenAIChatCompletionClient(
-    model="gpt-4o-mini",
-    api_key=OPENAI_API_KEY
-)
+st.markdown("### ChromaDB Status Check")
 
+try:
+    test_collection = vector_client.get_or_create_collection("test_collection")
+    st.success("Test collection created / accessed successfully ✓")
+except Exception as e:
+    st.error(f"Cannot create test collection: {str(e)}")
+
+st.markdown(f"**Current working directory:** `{os.getcwd()}`")
+st.markdown(f"**Chroma path exists?** {os.path.exists(CHROMA_PATH)}")
+st.markdown(f"**Path is writable?** {os.access(CHROMA_PATH, os.W_OK)}")
+
+# Simple button to reset database if needed (for development)
+if st.button("Reset ChromaDB (development only)", type="primary"):
+    try:
+        vector_client.reset()
+        st.success("ChromaDB reset complete")
+    except Exception as e:
+        st.error(f"Reset failed: {e}")
+
+# Rest of your application code goes here...
+st.markdown("---")
+st.markdown("**Your full application code should continue below this point**")
 #==================== AutoGen Agents ====================
 # Three lightweight agents:
 # - ComparisonAgent: matches contract features vs released/planned features
