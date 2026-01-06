@@ -38,6 +38,18 @@ from logic.pitch_deck import generate_pitch_deck_content_sync, build_pptx_from_c
 
 from utils.utils import normalize_text, chunk_text
 
+import chromadb
+
+# Option A: Connect to a free/public Chroma test instance (for dev/testing only)
+# client = chromadb.HttpClient(host="https://api.trychroma.com", ssl=True)  # or similar
+
+# Option B: Best – run your own free Chroma server separately (recommended)
+# Deploy free Chroma instance on Render, Railway, Fly.io, or Hugging Face Spaces
+# Then:
+client = chromadb.HttpClient(host="your-chroma-server-url.com", port=8000)  # or https if SSL
+
+# Then use client as normal:
+# collection = client.get_or_create_collection(name="my_collection")
 # Suppress noisy logs
 warnings.filterwarnings("ignore")
 logging.getLogger("chromadb").setLevel(logging.ERROR)
